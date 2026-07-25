@@ -1,0 +1,39 @@
+server {
+    listen __LISTEN_PORT__ default_server;
+    listen [::]:__LISTEN_PORT__ default_server;
+    server_name __SERVER_NAME__;
+
+    client_max_body_size 64m;
+
+    # End-to-end health check: nginx only returns success when llama-server is ready.
+    location = /healthz {
+        proxy_pass http://127.0.0.1:__LLAMA_PORT__/health;
+        proxy_set_header Host $host;
+        proxy_http_version 1.1;
+        proxy_connect_timeout 5s;
+        proxy_read_timeout 10s;
+    }
+
+    # llama-server provides both the chat UI and its API at the same origin.
+    location / {
+        proxy_pass http://127.0.0.1:__LLAMA_PORT__;
+        proxy_http_version 1.1;
+
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+
+        # Preserve streamed token responses.
+        proxy_buffering off;
+        proxy_request_buffering off;
+        proxy_cache off;
+        gzip off;
+        add_header X-Accel-Buffering no;
+
+        proxy_read_timeout 3600s;
+        proxy_send_timeout 3600s;
+        send_timeout 3600s;
+        client_body_timeout 3600s;
+    }
+}

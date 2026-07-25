@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.home-llama.server</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>__RUNNER_PATH__</string>
+  </array>
+
+  <key>UserName</key>
+  <string>__USER_NAME__</string>
+
+  <key>GroupName</key>
+  <string>__GROUP_NAME__</string>
+
+  <key>WorkingDirectory</key>
+  <string>__USER_HOME__</string>
+
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>HOME</key>
+    <string>__USER_HOME__</string>
+    <key>HOME_LLAMA_CONFIG</key>
+    <string>__CONFIG_PATH__</string>
+    <key>PATH</key>
+    <string>__BREW_PREFIX__/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+  </dict>
+
+  <key>RunAtLoad</key>
+  <true/>
+
+  <key>KeepAlive</key>
+  <true/>
+
+  <key>ThrottleInterval</key>
+  <integer>10</integer>
+
+  <key>ProcessType</key>
+  <string>Background</string>
+
+  <key>StandardOutPath</key>
+  <string>__LOG_DIR__/llama-server.out.log</string>
+
+  <key>StandardErrorPath</key>
+  <string>__LOG_DIR__/llama-server.err.log</string>
+</dict>
+</plist>
