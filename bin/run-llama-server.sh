@@ -38,6 +38,14 @@ if [[ -n "${LLAMA_THREADS:-}" ]]; then
   args+=(--threads "$LLAMA_THREADS")
 fi
 
+if [[ -n "${LLAMA_THREADS_BATCH:-}" ]]; then
+  args+=(--threads-batch "$LLAMA_THREADS_BATCH")
+fi
+
+if [[ -n "${LLAMA_CACHE_RAM:-}" ]]; then
+  args+=(--cache-ram "$LLAMA_CACHE_RAM")
+fi
+
 if [[ -n "${LLAMA_GPU_LAYERS:-}" ]]; then
   args+=(--n-gpu-layers "$LLAMA_GPU_LAYERS")
 fi
