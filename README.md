@@ -11,6 +11,9 @@ Browser on LAN → nginx :80 → llama-server 127.0.0.1:8080
                               └─ llama.cpp HTTP/OpenAI-compatible API
 ```
 
+`llama-server` already contains the chat client, so there is no separate Node or
+React application to build and deploy.
+
 ## What the setup installs
 
 - Homebrew `llama.cpp` and `nginx` packages, if missing.
@@ -112,14 +115,24 @@ Important settings:
 | `LLAMA_PARALLEL` | Concurrent server slots |
 | `LLAMA_DEVICE` | Empty for automatic selection; `none` forces CPU-only |
 | `LLAMA_THREADS` | Optional CPU thread override |
+| `LLAMA_THREADS_BATCH` | Optional prompt-processing thread override |
+| `LLAMA_CACHE_RAM` | Maximum server prompt cache in MiB |
 | `LLAMA_GPU_LAYERS` | Optional GPU-offloaded layer count |
 | `LLAMA_API_KEY` | Optional API/UI authentication |
 
-If the Intel Metal backend is unstable, set:
+For the Macmini8,1 with Intel UHD 630 graphics, use CPU-only inference:
 
 ```bash
 LLAMA_DEVICE=none
+LLAMA_GPU_LAYERS=0
+LLAMA_THREADS=6
+LLAMA_THREADS_BATCH=12
+LLAMA_CACHE_RAM=1024
 ```
+
+The six generation threads match its physical cores. Twelve batch threads can
+use Hyper-Threading while ingesting prompts. The explicit 1 GiB prompt-cache cap
+avoids llama-server's much larger default on a 16 GB host.
 
 ## Operations
 
