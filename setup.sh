@@ -49,6 +49,14 @@ set +a
 [[ "$LLAMA_PORT" =~ ^[0-9]+$ ]] || die "LLAMA_PORT must be numeric"
 [[ "$LLAMA_CTX_SIZE" =~ ^[0-9]+$ ]] || die "LLAMA_CTX_SIZE must be numeric"
 [[ "$LLAMA_PARALLEL" =~ ^[0-9]+$ ]] || die "LLAMA_PARALLEL must be numeric"
+[[ -z "${LLAMA_THREADS:-}" || "$LLAMA_THREADS" =~ ^[0-9]+$ ]] ||
+  die "LLAMA_THREADS must be empty or numeric"
+[[ -z "${LLAMA_THREADS_BATCH:-}" || "$LLAMA_THREADS_BATCH" =~ ^[0-9]+$ ]] ||
+  die "LLAMA_THREADS_BATCH must be empty or numeric"
+[[ -z "${LLAMA_CACHE_RAM:-}" || "$LLAMA_CACHE_RAM" =~ ^(-1|[0-9]+)$ ]] ||
+  die "LLAMA_CACHE_RAM must be empty, -1, or a non-negative integer"
+[[ -z "${LLAMA_GPU_LAYERS:-}" || "$LLAMA_GPU_LAYERS" =~ ^([0-9]+|auto|all)$ ]] ||
+  die "LLAMA_GPU_LAYERS must be empty, numeric, auto, or all"
 [[ "$SERVER_NAME" =~ ^[A-Za-z0-9._-]+$ ]] ||
   die "SERVER_NAME may contain only letters, numbers, dots, underscores, and hyphens"
 
@@ -91,6 +99,8 @@ config_tmp="${tmp_dir}/home-llama.env"
   printf 'LLAMA_PARALLEL=%q\n' "$LLAMA_PARALLEL"
   printf 'LLAMA_DEVICE=%q\n' "${LLAMA_DEVICE:-}"
   printf 'LLAMA_THREADS=%q\n' "${LLAMA_THREADS:-}"
+  printf 'LLAMA_THREADS_BATCH=%q\n' "${LLAMA_THREADS_BATCH:-}"
+  printf 'LLAMA_CACHE_RAM=%q\n' "${LLAMA_CACHE_RAM:-}"
   printf 'LLAMA_GPU_LAYERS=%q\n' "${LLAMA_GPU_LAYERS:-}"
   printf 'LLAMA_API_KEY=%q\n' "${LLAMA_API_KEY:-}"
 } > "$config_tmp"
