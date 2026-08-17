@@ -1,3 +1,4 @@
 {
-  "customCss": "a[href=\"#/mcp-servers\"] { display: none !important; }"
+  "customCss": "a[href=\"#/mcp-servers\"] { display: none !important; }",
+  "systemMessage": "You are a helpful assistant. Be concise, accurate, and explicit about uncertainty."
 }
