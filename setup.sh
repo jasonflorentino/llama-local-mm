@@ -92,6 +92,7 @@ readonly GROUP_NAME="$(id -gn)"
 readonly USER_HOME="$HOME"
 readonly INSTALL_DIR="${BREW_PREFIX}/libexec/home-llama"
 readonly CONFIG_PATH="${BREW_PREFIX}/etc/home-llama.env"
+readonly WEBUI_CONFIG_PATH="${BREW_PREFIX}/etc/home-llama-webui.json"
 readonly RUNNER_PATH="${INSTALL_DIR}/run-llama-server"
 readonly NGINX_SERVERS_DIR="${BREW_PREFIX}/etc/nginx/servers"
 readonly NGINX_SITE_PATH="${NGINX_SERVERS_DIR}/${SERVER_NAME}.conf"
@@ -100,6 +101,11 @@ readonly LOG_DIR="${HOME}/Library/Logs/home-llama"
 llama_help="$("$LLAMA_SERVER_BIN" --help 2>&1 || true)"
 [[ "$llama_help" == *"--hf-repo"* ]] ||
   die "${LLAMA_SERVER_BIN} does not support --hf-repo; upgrade llama.cpp with: brew upgrade llama.cpp"
+[[ "$llama_help" == *"--ui-config-file"* ]] ||
+  die "${LLAMA_SERVER_BIN} does not support --ui-config-file; upgrade llama.cpp with: brew upgrade llama.cpp"
+
+plutil -lint etc/webui-config.json >/dev/null ||
+  die "etc/webui-config.json is not valid JSON"
 
 mkdir -p "$LOG_DIR"
 touch "$LOG_DIR/llama-server.out.log" "$LOG_DIR/llama-server.err.log"
@@ -113,6 +119,7 @@ config_tmp="${tmp_dir}/home-llama.env"
   printf 'LLAMA_SERVER_BIN=%q\n' "$LLAMA_SERVER_BIN"
   printf 'LLAMA_MODEL=%q\n' "$LLAMA_MODEL"
   printf 'LLAMA_MODEL_ALIAS=%q\n' "$LLAMA_MODEL_ALIAS"
+  printf 'LLAMA_WEBUI_CONFIG_FILE=%q\n' "$WEBUI_CONFIG_PATH"
   printf 'LLAMA_PORT=%q\n' "$LLAMA_PORT"
   printf 'LLAMA_CTX_SIZE=%q\n' "$LLAMA_CTX_SIZE"
   printf 'LLAMA_PARALLEL=%q\n' "$LLAMA_PARALLEL"
@@ -145,11 +152,14 @@ replace_token "$nginx_tmp" "__LLAMA_PORT__" "$LLAMA_PORT"
 echo "Installing the llama-server boot service..."
 sudo install -d -m 755 "$INSTALL_DIR"
 sudo install -m 755 bin/run-llama-server.sh "$RUNNER_PATH"
+sudo install -m 644 etc/webui-config.json "$WEBUI_CONFIG_PATH"
 sudo install -m 600 "$config_tmp" "$CONFIG_PATH"
 sudo chown "${USER_NAME}:${GROUP_NAME}" "$CONFIG_PATH"
-sudo chown root:wheel "$RUNNER_PATH"
+sudo chown root:wheel "$RUNNER_PATH" "$WEBUI_CONFIG_PATH"
 sudo -u "$USER_NAME" test -r "$CONFIG_PATH" ||
   die "Generated runtime configuration is not readable by ${USER_NAME}"
+sudo -u "$USER_NAME" test -r "$WEBUI_CONFIG_PATH" ||
+  die "Web UI configuration is not readable by ${USER_NAME}"
 sudo install -m 644 "$plist_tmp" "$PLIST_PATH"
 sudo chown root:wheel "$PLIST_PATH"
 

@@ -32,6 +32,9 @@ server {
         proxy_cache off;
         gzip off;
         add_header X-Accel-Buffering no;
+        # Keep the bundled UI's browser requests on this local origin. This
+        # prevents direct connections to external MCP servers from the page.
+        add_header Content-Security-Policy "connect-src 'self'" always;
 
         proxy_read_timeout 3600s;
         proxy_send_timeout 3600s;

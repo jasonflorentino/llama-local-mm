@@ -23,13 +23,14 @@ set +a
 readonly BREW_PREFIX="$(brew --prefix)"
 readonly INSTALL_DIR="${BREW_PREFIX}/libexec/home-llama"
 readonly CONFIG_PATH="${BREW_PREFIX}/etc/home-llama.env"
+readonly WEBUI_CONFIG_PATH="${BREW_PREFIX}/etc/home-llama-webui.json"
 readonly NGINX_SITE_PATH="${BREW_PREFIX}/etc/nginx/servers/${SERVER_NAME}.conf"
 
 if sudo launchctl print "system/${SERVICE_LABEL}" >/dev/null 2>&1; then
   sudo launchctl bootout system "$PLIST_PATH"
 fi
 
-sudo rm -f "$PLIST_PATH" "$CONFIG_PATH" "$NGINX_SITE_PATH"
+sudo rm -f "$PLIST_PATH" "$CONFIG_PATH" "$WEBUI_CONFIG_PATH" "$NGINX_SITE_PATH"
 sudo rm -f "${INSTALL_DIR}/run-llama-server"
 sudo rmdir "$INSTALL_DIR" 2>/dev/null || true
 

@@ -18,14 +18,21 @@ set +a
 : "${LLAMA_SERVER_BIN:?LLAMA_SERVER_BIN is required}"
 : "${LLAMA_MODEL:?LLAMA_MODEL is required}"
 : "${LLAMA_MODEL_ALIAS:?LLAMA_MODEL_ALIAS is required}"
+: "${LLAMA_WEBUI_CONFIG_FILE:?LLAMA_WEBUI_CONFIG_FILE is required}"
 : "${LLAMA_PORT:?LLAMA_PORT is required}"
 : "${LLAMA_CTX_SIZE:?LLAMA_CTX_SIZE is required}"
 : "${LLAMA_PARALLEL:?LLAMA_PARALLEL is required}"
+
+if [[ ! -r "$LLAMA_WEBUI_CONFIG_FILE" ]]; then
+  echo "Web UI configuration file is not readable: $LLAMA_WEBUI_CONFIG_FILE" >&2
+  exit 1
+fi
 
 args=(
   "$LLAMA_SERVER_BIN"
   --hf-repo "$LLAMA_MODEL"
   --alias "$LLAMA_MODEL_ALIAS"
+  --ui-config-file "$LLAMA_WEBUI_CONFIG_FILE"
   --host 127.0.0.1
   --port "$LLAMA_PORT"
   --ctx-size "$LLAMA_CTX_SIZE"

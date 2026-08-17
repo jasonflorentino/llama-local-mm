@@ -20,6 +20,7 @@ React application to build and deploy.
 - A system `LaunchDaemon` that runs `llama-server` as your normal user.
 - A private runtime configuration generated from `.env`, readable only by the
   user that runs `llama-server`.
+- A managed web UI configuration that hides the unused MCP Servers menu.
 - An nginx virtual host that proxies the UI and API while preserving streaming.
 - Persistent logs under `~/Library/Logs/home-llama`.
 
@@ -206,13 +207,17 @@ sudo launchctl kickstart -k system/com.home-llama.server
 ./uninstall.sh
 ```
 
-This removes the launchd service, its generated runtime configuration, and the
-nginx virtual host. It deliberately leaves the model cache, logs, `.env`,
-Homebrew packages, and repository intact.
+This removes the launchd service, its generated runtime and web UI
+configurations, and the nginx virtual host. It deliberately leaves the model
+cache, logs, `.env`, Homebrew packages, and repository intact.
 
 ## Security
 
 - Do not forward the nginx port from your router to the public internet.
+- The managed web UI CSS hides the MCP Servers menu, while nginx's
+  `connect-src 'self'` policy prevents the page from connecting directly to
+  external MCP servers. These are UI and browser controls; continue to leave
+  llama.cpp agent, tool, and MCP server options disabled.
 - Treat the web UI as available to every device on the LAN unless you set
   `LLAMA_API_KEY` or add authentication/TLS at nginx.
 - Do not enable llama.cpp's `--agent` or `--tools` options on an untrusted
