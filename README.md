@@ -6,7 +6,7 @@ automatically at boot, and expose it to a trusted home network through nginx.
 The service layout is:
 
 ```text
-Browser on LAN → nginx :80 → llama-server 127.0.0.1:8080
+Browser on LAN → nginx :80 → llama-server 127.0.0.1:18080
                               ├─ built-in chat UI
                               └─ llama.cpp HTTP/OpenAI-compatible API
 ```
@@ -18,12 +18,17 @@ React application to build and deploy.
 
 - Homebrew `llama.cpp` and `nginx` packages, if missing.
 - A system `LaunchDaemon` that runs `llama-server` as your normal user.
-- A root-owned runtime configuration generated from `.env`.
+- A private runtime configuration generated from `.env`, readable only by the
+  user that runs `llama-server`.
 - An nginx virtual host that proxies the UI and API while preserving streaming.
 - Persistent logs under `~/Library/Logs/home-llama`.
 
 The daemon binds `llama-server` to loopback only. nginx is the only process
 exposed to the LAN.
+
+The generated nginx configuration is a named virtual host, not the default
+server, so it can coexist with other Homebrew nginx sites listening on the same
+port.
 
 ## Prerequisites
 
@@ -97,7 +102,16 @@ Then open:
 http://llama.home.arpa
 ```
 
-Until DNS exists, use the LAN IP printed by `setup.sh`.
+Until DNS exists, preserve the intended hostname with curl's temporary resolver
+override (replace the sample IP):
+
+```bash
+curl --resolve llama.home.arpa:80:192.168.1.42 \
+  http://llama.home.arpa/healthz
+```
+
+Using the bare LAN IP as the browser origin is intentionally not enabled by
+default because CORS is restricted to `SERVER_NAME`.
 
 ## Configuration
 
@@ -109,14 +123,17 @@ Important settings:
 | --- | --- |
 | `SERVER_NAME` | Local DNS hostname served by nginx |
 | `LISTEN_PORT` | LAN-facing nginx port; defaults to `80` |
-| `LLAMA_PORT` | Loopback-only llama-server port |
+| `LLAMA_PORT` | Loopback-only llama-server port; defaults to `18080` to avoid nginx's common `8080` default |
 | `LLAMA_MODEL` | Hugging Face GGUF repository and quantization |
+| `LLAMA_MODEL_ALIAS` | Stable API-facing model name retained when the underlying GGUF changes |
 | `LLAMA_CTX_SIZE` | Context size; larger values consume more memory |
 | `LLAMA_PARALLEL` | Concurrent server slots |
+| `LLAMA_STARTUP_TIMEOUT` | Seconds setup waits for a model download and startup; defaults to `1800` |
 | `LLAMA_DEVICE` | Empty for automatic selection; `none` forces CPU-only |
 | `LLAMA_THREADS` | Optional CPU thread override |
 | `LLAMA_THREADS_BATCH` | Optional prompt-processing thread override |
 | `LLAMA_CACHE_RAM` | Maximum server prompt cache in MiB |
+| `LLAMA_CORS_ORIGINS` | Allowed browser origins; empty restricts it to the configured site URL |
 | `LLAMA_GPU_LAYERS` | Optional GPU-offloaded layer count |
 | `LLAMA_API_KEY` | Optional API/UI authentication |
 
@@ -124,7 +141,7 @@ For the Macmini8,1 with Intel UHD 630 graphics, use CPU-only inference:
 
 ```bash
 LLAMA_DEVICE=none
-LLAMA_GPU_LAYERS=0
+LLAMA_GPU_LAYERS=
 LLAMA_THREADS=6
 LLAMA_THREADS_BATCH=12
 LLAMA_CACHE_RAM=1024
@@ -132,9 +149,21 @@ LLAMA_CACHE_RAM=1024
 
 The six generation threads match its physical cores. Twelve batch threads can
 use Hyper-Threading while ingesting prompts. The explicit 1 GiB prompt-cache cap
-avoids llama-server's much larger default on a 16 GB host.
+avoids llama-server's much larger default on a 16 GB host. Leaving GPU layers
+empty avoids passing an irrelevant GPU option in CPU-only mode.
 
 ## Operations
+
+Switch the single active model without enabling router mode:
+
+```bash
+./switch-model.sh OWNER/REPOSITORY:QUANTIZATION
+```
+
+The stable `home-llama` API alias prevents saved clients from depending on a
+specific GGUF identifier. See
+[docs/MODEL_SWITCHING.md](docs/MODEL_SWITCHING.md) for the complete switching,
+verification, and rollback procedure.
 
 Inspect health and service state:
 
@@ -160,7 +189,7 @@ Validate and restart nginx:
 
 ```bash
 sudo "$(command -v nginx)" -t
-sudo "$(command -v brew)" services restart nginx
+sudo "$(command -v nginx)" -s reload
 ```
 
 Upgrade llama.cpp:
@@ -204,8 +233,8 @@ sudo launchctl print system/com.home-llama.server
 If nginx is unavailable:
 
 ```bash
-sudo nginx -t
-sudo brew services list
+sudo "$(command -v nginx)" -t
+sudo "$(command -v brew)" services list
 lsof -nP -iTCP -sTCP:LISTEN
 ```
 

@@ -1,6 +1,8 @@
 server {
-    listen __LISTEN_PORT__ default_server;
-    listen [::]:__LISTEN_PORT__ default_server;
+    # This named virtual host can coexist with other nginx sites on this port.
+    # Do not claim default_server; an existing site may already own that role.
+    listen __LISTEN_PORT__;
+    listen [::]:__LISTEN_PORT__;
     server_name __SERVER_NAME__;
 
     client_max_body_size 64m;

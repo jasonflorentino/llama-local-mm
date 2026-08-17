@@ -21,7 +21,6 @@ source .env
 set +a
 
 readonly BREW_PREFIX="$(brew --prefix)"
-readonly BREW_BIN="$(command -v brew)"
 readonly INSTALL_DIR="${BREW_PREFIX}/libexec/home-llama"
 readonly CONFIG_PATH="${BREW_PREFIX}/etc/home-llama.env"
 readonly NGINX_SITE_PATH="${BREW_PREFIX}/etc/nginx/servers/${SERVER_NAME}.conf"
@@ -35,7 +34,9 @@ sudo rm -f "${INSTALL_DIR}/run-llama-server"
 sudo rmdir "$INSTALL_DIR" 2>/dev/null || true
 
 sudo "$(command -v nginx)" -t
-sudo "$BREW_BIN" services restart nginx
+if pgrep -x nginx >/dev/null 2>&1; then
+  sudo "$(command -v nginx)" -s reload
+fi
 
 echo "Removed the llama-server service and nginx site."
 echo "Model cache, logs, Homebrew packages, and your .env were left intact."

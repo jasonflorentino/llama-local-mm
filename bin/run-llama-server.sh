@@ -8,8 +8,8 @@ if [[ ! -r "$CONFIG_FILE" ]]; then
   exit 1
 fi
 
-# The installed configuration is root-owned and is created from the repository's
-# .env file by setup.sh.
+# The installed configuration is generated from the repository's .env file by
+# setup.sh and is private to the service user.
 set -a
 # shellcheck disable=SC1090
 source "$CONFIG_FILE"
@@ -17,13 +17,15 @@ set +a
 
 : "${LLAMA_SERVER_BIN:?LLAMA_SERVER_BIN is required}"
 : "${LLAMA_MODEL:?LLAMA_MODEL is required}"
+: "${LLAMA_MODEL_ALIAS:?LLAMA_MODEL_ALIAS is required}"
 : "${LLAMA_PORT:?LLAMA_PORT is required}"
 : "${LLAMA_CTX_SIZE:?LLAMA_CTX_SIZE is required}"
 : "${LLAMA_PARALLEL:?LLAMA_PARALLEL is required}"
 
 args=(
   "$LLAMA_SERVER_BIN"
-  --hf "$LLAMA_MODEL"
+  --hf-repo "$LLAMA_MODEL"
+  --alias "$LLAMA_MODEL_ALIAS"
   --host 127.0.0.1
   --port "$LLAMA_PORT"
   --ctx-size "$LLAMA_CTX_SIZE"
@@ -44,6 +46,10 @@ fi
 
 if [[ -n "${LLAMA_CACHE_RAM:-}" ]]; then
   args+=(--cache-ram "$LLAMA_CACHE_RAM")
+fi
+
+if [[ -n "${LLAMA_CORS_ORIGINS:-}" ]]; then
+  args+=(--cors-origins "$LLAMA_CORS_ORIGINS")
 fi
 
 if [[ -n "${LLAMA_GPU_LAYERS:-}" ]]; then

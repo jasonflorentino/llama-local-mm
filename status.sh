@@ -24,6 +24,13 @@ curl -fsS "http://127.0.0.1:${LLAMA_PORT}/health"
 echo
 
 echo
+echo "configured model: ${LLAMA_MODEL}"
+echo "stable API alias: ${LLAMA_MODEL_ALIAS:-home-llama}"
+echo "advertised model:"
+curl -fsS "http://127.0.0.1:${LLAMA_PORT}/v1/models"
+echo
+
+echo
 echo "nginx health:"
 curl -fsS -H "Host: ${SERVER_NAME}" \
   "http://127.0.0.1:${LISTEN_PORT}/healthz"

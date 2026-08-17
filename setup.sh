@@ -42,13 +42,17 @@ set +a
 : "${LISTEN_PORT:?LISTEN_PORT is required}"
 : "${LLAMA_PORT:?LLAMA_PORT is required}"
 : "${LLAMA_MODEL:?LLAMA_MODEL is required}"
+: "${LLAMA_MODEL_ALIAS:=home-llama}"
 : "${LLAMA_CTX_SIZE:?LLAMA_CTX_SIZE is required}"
 : "${LLAMA_PARALLEL:?LLAMA_PARALLEL is required}"
+: "${LLAMA_STARTUP_TIMEOUT:=1800}"
 
 [[ "$LISTEN_PORT" =~ ^[0-9]+$ ]] || die "LISTEN_PORT must be numeric"
 [[ "$LLAMA_PORT" =~ ^[0-9]+$ ]] || die "LLAMA_PORT must be numeric"
 [[ "$LLAMA_CTX_SIZE" =~ ^[0-9]+$ ]] || die "LLAMA_CTX_SIZE must be numeric"
 [[ "$LLAMA_PARALLEL" =~ ^[0-9]+$ ]] || die "LLAMA_PARALLEL must be numeric"
+[[ "$LLAMA_STARTUP_TIMEOUT" =~ ^[1-9][0-9]*$ ]] ||
+  die "LLAMA_STARTUP_TIMEOUT must be a positive integer"
 [[ -z "${LLAMA_THREADS:-}" || "$LLAMA_THREADS" =~ ^[0-9]+$ ]] ||
   die "LLAMA_THREADS must be empty or numeric"
 [[ -z "${LLAMA_THREADS_BATCH:-}" || "$LLAMA_THREADS_BATCH" =~ ^[0-9]+$ ]] ||
@@ -59,6 +63,16 @@ set +a
   die "LLAMA_GPU_LAYERS must be empty, numeric, auto, or all"
 [[ "$SERVER_NAME" =~ ^[A-Za-z0-9._-]+$ ]] ||
   die "SERVER_NAME may contain only letters, numbers, dots, underscores, and hyphens"
+[[ "$LLAMA_MODEL_ALIAS" =~ ^[A-Za-z0-9._-]+$ ]] ||
+  die "LLAMA_MODEL_ALIAS may contain only letters, numbers, dots, underscores, and hyphens"
+
+if [[ -z "${LLAMA_CORS_ORIGINS:-}" ]]; then
+  if [[ "$LISTEN_PORT" == "80" ]]; then
+    LLAMA_CORS_ORIGINS="http://${SERVER_NAME}"
+  else
+    LLAMA_CORS_ORIGINS="http://${SERVER_NAME}:${LISTEN_PORT}"
+  fi
+fi
 
 require_command brew
 require_command curl
@@ -83,6 +97,10 @@ readonly NGINX_SERVERS_DIR="${BREW_PREFIX}/etc/nginx/servers"
 readonly NGINX_SITE_PATH="${NGINX_SERVERS_DIR}/${SERVER_NAME}.conf"
 readonly LOG_DIR="${HOME}/Library/Logs/home-llama"
 
+llama_help="$("$LLAMA_SERVER_BIN" --help 2>&1 || true)"
+[[ "$llama_help" == *"--hf-repo"* ]] ||
+  die "${LLAMA_SERVER_BIN} does not support --hf-repo; upgrade llama.cpp with: brew upgrade llama.cpp"
+
 mkdir -p "$LOG_DIR"
 touch "$LOG_DIR/llama-server.out.log" "$LOG_DIR/llama-server.err.log"
 chmod 644 "$LOG_DIR/llama-server."*.log
@@ -94,6 +112,7 @@ config_tmp="${tmp_dir}/home-llama.env"
 {
   printf 'LLAMA_SERVER_BIN=%q\n' "$LLAMA_SERVER_BIN"
   printf 'LLAMA_MODEL=%q\n' "$LLAMA_MODEL"
+  printf 'LLAMA_MODEL_ALIAS=%q\n' "$LLAMA_MODEL_ALIAS"
   printf 'LLAMA_PORT=%q\n' "$LLAMA_PORT"
   printf 'LLAMA_CTX_SIZE=%q\n' "$LLAMA_CTX_SIZE"
   printf 'LLAMA_PARALLEL=%q\n' "$LLAMA_PARALLEL"
@@ -101,6 +120,7 @@ config_tmp="${tmp_dir}/home-llama.env"
   printf 'LLAMA_THREADS=%q\n' "${LLAMA_THREADS:-}"
   printf 'LLAMA_THREADS_BATCH=%q\n' "${LLAMA_THREADS_BATCH:-}"
   printf 'LLAMA_CACHE_RAM=%q\n' "${LLAMA_CACHE_RAM:-}"
+  printf 'LLAMA_CORS_ORIGINS=%q\n' "$LLAMA_CORS_ORIGINS"
   printf 'LLAMA_GPU_LAYERS=%q\n' "${LLAMA_GPU_LAYERS:-}"
   printf 'LLAMA_API_KEY=%q\n' "${LLAMA_API_KEY:-}"
 } > "$config_tmp"
@@ -126,13 +146,23 @@ echo "Installing the llama-server boot service..."
 sudo install -d -m 755 "$INSTALL_DIR"
 sudo install -m 755 bin/run-llama-server.sh "$RUNNER_PATH"
 sudo install -m 600 "$config_tmp" "$CONFIG_PATH"
-sudo chown root:wheel "$CONFIG_PATH" "$RUNNER_PATH"
+sudo chown "${USER_NAME}:${GROUP_NAME}" "$CONFIG_PATH"
+sudo chown root:wheel "$RUNNER_PATH"
+sudo -u "$USER_NAME" test -r "$CONFIG_PATH" ||
+  die "Generated runtime configuration is not readable by ${USER_NAME}"
 sudo install -m 644 "$plist_tmp" "$PLIST_PATH"
 sudo chown root:wheel "$PLIST_PATH"
 
 if sudo launchctl print "system/${SERVICE_LABEL}" >/dev/null 2>&1; then
   sudo launchctl bootout system "$PLIST_PATH"
 fi
+
+port_users="$(lsof -nP -iTCP:"$LLAMA_PORT" -sTCP:LISTEN 2>/dev/null || true)"
+if [[ -n "$port_users" ]]; then
+  echo "$port_users" >&2
+  die "LLAMA_PORT ${LLAMA_PORT} is already in use; choose another value in .env"
+fi
+
 sudo launchctl bootstrap system "$PLIST_PATH"
 sudo launchctl enable "system/${SERVICE_LABEL}"
 sudo launchctl kickstart -k "system/${SERVICE_LABEL}"
@@ -147,10 +177,17 @@ if ! grep -Eq 'include[[:space:]]+([^;[:space:]]*/)?servers/\*' \
 fi
 
 sudo "$NGINX_BIN" -t
-sudo "$BREW_BIN" services restart nginx
+if pgrep -x nginx >/dev/null 2>&1; then
+  sudo "$NGINX_BIN" -s reload
+else
+  # Port 80 requires a system service on macOS. This branch is expected only
+  # during first-time setup; later idempotent runs reload the existing service.
+  sudo "$BREW_BIN" services start nginx
+fi
 
-echo "Waiting for the model to download and llama-server to become ready..."
-for _ in {1..180}; do
+echo "Waiting up to ${LLAMA_STARTUP_TIMEOUT}s for the model to download and llama-server to become ready..."
+startup_deadline=$((SECONDS + LLAMA_STARTUP_TIMEOUT))
+while (( SECONDS < startup_deadline )); do
   if curl -fsS "http://127.0.0.1:${LLAMA_PORT}/health" >/dev/null 2>&1; then
     break
   fi
@@ -175,10 +212,8 @@ else
   echo "Web UI: http://${SERVER_NAME}:${LISTEN_PORT}"
 fi
 if [[ -n "$lan_ip" ]]; then
-  if [[ "$LISTEN_PORT" == "80" ]]; then
-    echo "LAN fallback: http://${lan_ip}"
-  else
-    echo "LAN fallback: http://${lan_ip}:${LISTEN_PORT}"
-  fi
+  echo "LAN address: ${lan_ip}"
+  echo "Before DNS exists, test from another machine with:"
+  echo "  curl --resolve ${SERVER_NAME}:${LISTEN_PORT}:${lan_ip} http://${SERVER_NAME}:${LISTEN_PORT}/healthz"
 fi
 echo "Logs: ${LOG_DIR}"
