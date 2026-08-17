@@ -77,6 +77,7 @@ fi
 require_command brew
 require_command curl
 require_command plutil
+require_command jq
 
 readonly BREW_BIN="$(command -v brew)"
 
@@ -104,7 +105,7 @@ llama_help="$("$LLAMA_SERVER_BIN" --help 2>&1 || true)"
 [[ "$llama_help" == *"--ui-config-file"* ]] ||
   die "${LLAMA_SERVER_BIN} does not support --ui-config-file; upgrade llama.cpp with: brew upgrade llama.cpp"
 
-plutil -lint etc/webui-config.json >/dev/null ||
+jq -e . etc/webui-config.json >/dev/null ||
   die "etc/webui-config.json is not valid JSON"
 
 mkdir -p "$LOG_DIR"
